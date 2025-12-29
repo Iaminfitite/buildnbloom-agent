@@ -21,31 +21,35 @@ headers = {
 }
 
 #  3. THE FUNCTION
-def add_lead_to_notion(name,email,summary):
+def add_lead_to_notion(name,email,summary,priority):
     url = "https://api.notion.com/v1/pages"
 
-    # Notion requires a very specifiv (and annoying) JSON structure
-    payload = {
+    headers = {
+        "Authorization": f"Bearer {NOTION_SECRET}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+
+    data = {
         "parent": {"database_id": DATABASE_ID},
         "properties": {
             "Name": {
-                "title": [
-                    {"text": { "content": name }}
-                ]
+                "title": [{"text": {"content": name}}]
             },
-            "Email":{
-                "email": email #Noter:If you used 'Text' col in Notion, chane "email" to "rich_text"
+            "Email": {
+                "email": email
             },
             "Summary": {
-                "rich_text":[
-                    {"text": {"content": summary}}
-                ]
+                "rich_text": [{"text": {"content": summary}}]
+            },
+            "Priority": {
+                "select": {"name": priority}
             }
-            
         }
     }
+
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=data)
 
         if response.status_code == 200:
             print("✅ Successfully saved Notion!")
@@ -60,6 +64,6 @@ def add_lead_to_notion(name,email,summary):
             return False
     
     #  4. TEST IT (Only runs if you play this files directly)
-if __name__ =="__main__":
-        print("___ 🧪 TESTING NOTION CONNECTION ---")
-        add_lead_to_notion("Elon Musk", "elon@tesla.com", "wants to buy the agency.")
+if __name__ == "__main__":
+    print("___ 🧪 TESTING NOTION CONNECTION ---")
+    add_lead_to_notion("Elon Musk", "elon@tesla.com", "wants to buy the agency.", "High")
