@@ -107,72 +107,129 @@
 # ⚠️ Error procession data: 'str' object has no attribute '
 # 127.0.0.1 - - [24/Dec/2025 05:23:22] "POST /webhook HTTP/1.1" 200 -
 
+# from flask import Flask, request
+# import pprint
+# import json #<--- NEW: Needed for the fix
+# from crm import add_lead_to_notion
+
+# app = Flask(__name__)
+
+# print("--- 🎧 SERVER ONLINE: WAITING FOR CALLS---")
+
+# @app.route('/', methods=['GET'])
+# def home():
+#     return "👋 Hello! The BuildnBloom server is awake."
+
+# @app.route('/webhook', methods=['POST'])
+# def receive_signal():
+#     print("/n🚨 INCOMING CALL DATA!")
+
+#     # 1. CAPTURE DATA
+#     data = request.json 
+#     #--- 🛡️ THE FIX: SMART PARSER ---
+#     #  If data arrived as a "string" (Text), force it into a Dictionary 
+#     if isinstance(data, str):
+#         print("⚠️ Data arrived as a String. Converting to Dictionary...")
+#         try:
+#             data = json.loads(data)
+#         except:
+#             print("❌ Could not convert string to JSON.")
+
+#     # Optional: Print to see what we are working with
+#     # pprint.pprint(data)
+
+#     try:
+#         # 2. PARSE THE DATA
+#         # Now 'data' is definitley a dictionary, so .get() will work
+#         call_data = data.get('call', {})
+
+#         # Look for the transcript
+#         transcript = data.get('transcript', call_data.get('transcript', "No transcript"))
+
+#         # Look for the analysis (extracted fields)
+#         analysis = data.get('call_analysis', call_data.get('call_analysis', {}))
+#         print(f"🧐 DEBUG ANALYSIS KEYS: {analysis.keys()}")
+#         if 'custom_analysis_data' in analysis:
+#             print(f"📦 CUSTOM DATA: {analysis['custom_analysis_data']}")
+            
+#         custom_data = analysis.get('custom_analysis_data', {})
+
+#         # 3. EXTRACT SPECIFIC FIELDS
+#         name = custom_data.get('extracted_name', "unknown caller")
+#         email = custom_data.get('extracted_email', "No Email")
+#         summary = analysis.get('call_summary', transcript)
+
+#         print(f"🎯 Extracted: {name} | {email}")
+
+#         # 4. SAVE TO NOTION 
+#         success = add_lead_to_notion(name,email, summary)
+
+#         if success:
+#             print("✅ Database Updated.")
+#         else:
+#             print("❌Database Update Failed.")
+
+#     except Exception as e:
+#         Print(f"⚠️ Error Processing data: {e}")
+#     return {"status": "Received"}, 200
+
+# if __name__ == '__main__':
+#     app.run(port=5000)
+
+import os
 from flask import Flask, request
-import pprint
-import json #<--- NEW: Needed for the fix
 from crm import add_lead_to_notion
 
+# FIX 1: 'Flask' (lowercase 'l')
 app = Flask(__name__)
 
-print("--- 🎧 SERVER ONLINE: WAITING FOR CALLS---")
-
-@app.route('/', methods=['GET'])
-def home():
-    return "👋 Hello! The BuildnBloom server is awake."
-
-@app.route('/webhook', methods=['POST'])
-def receive_signal():
-    print("/n🚨 INCOMING CALL DATA!")
-
-    # 1. CAPTURE DATA
-    data = request.json 
-    #--- 🛡️ THE FIX: SMART PARSER ---
-    #  If data arrived as a "string" (Text), force it into a Dictionary 
-    if isinstance(data, str):
-        print("⚠️ Data arrived as a String. Converting to Dictionary...")
-        try:
-            data = json.loads(data)
-        except:
-            print("❌ Could not convert string to JSON.")
-
-    # Optional: Print to see what we are working with
-    # pprint.pprint(data)
-
+@app.route("/webhook", methods=["POST"])
+def retell_webhook():
     try:
-        # 2. PARSE THE DATA
-        # Now 'data' is definitley a dictionary, so .get() will work
-        call_data = data.get('call', {})
+        data = request.get_json()
 
-        # Look for the transcript
-        transcript = data.get('transcript', call_data.get('transcript', "No transcript"))
+        # 1. CHECK EVENT TYPE
+        if data.get("event") != "call_analyzed":
+            return {"message": "Event ignored"}, 200
+        
+        print(f"📞 Received Call Data: {data.get('call_id', 'Unknown ID')}")
 
-        # Look for the analysis (extracted fields)
-        analysis = data.get('call_analysis', call_data.get('call_analysis', {}))
-        print(f"🧐 DEBUG ANALYSIS KEYS: {analysis.keys()}")
-        if 'custom_analysis_data' in analysis:
-            print(f"📦 CUSTOM DATA: {analysis['custom_analysis_data']}")
-            
-        custom_data = analysis.get('custom_analysis_data', {})
+        # 2. EXTRACT DATA
+        # FIX 2: Correctly safely get the summary
+        summary = data.get("call_analysis", {}).get("call_summary", "No summary provided.")
 
-        # 3. EXTRACT SPECIFIC FIELDS
-        name = custom_data.get('extracted_name', "unknown caller")
-        email = custom_data.get('extracted_email', "No Email")
-        summary = analysis.get('call_summary', transcript)
+        # Retell extracts custom data fields
+        custom_data = data.get("call_analysis", {}).get("custom_analysis_data", {})
+        name = custom_data.get("name", "Unknown Caller")
+        # FIX 3: Fixed 'custome_data' typo -> 'custom_data'
+        email = custom_data.get("email", "no-email@provided.com")
 
-        print(f"🎯 Extracted: {name} | {email}")
+        # --- 🧠 SMART LOGIC: DETERMINE PRIORITY ---
+        # 1. Define keywords that signal money or urgency
+        # FIX 4: Added missing quote after "buy"
+        hot_keywords = ["urgent", "asap", "buy", "money", "emergency", "immediately", "invest"]
 
-        # 4. SAVE TO NOTION 
-        success = add_lead_to_notion(name,email, summary)
+        # This checks if any 'hot' word appears inside the 'summary' text (case insensitive)
+        priority_status = "Normal" # Default
+        if any(word in summary.lower() for word in hot_keywords):
+            print("🔥 HOT LEAD DETECTED!")
+            priority_status = "High"
+        else:
+            print("🧊 Normal lead.")
+
+        # 3. SAVE TO NOTION
+        # FIX 5: Spelled 'success' correctly so the 'if' statement works
+        success = add_lead_to_notion(name, email, summary, priority_status)
 
         if success:
-            print("✅ Database Updated.")
+            return {"message": "Lead saved to Notion"}, 200
         else:
-            print("❌Database Update Failed.")
-
+            return {"message": "Failed to save to Notion"}, 500
+            
     except Exception as e:
-        Print(f"⚠️ Error Processing data: {e}")
-    return {"status": "Received"}, 200
+        print(f"❌ Error: {e}")
+        return {"message": "Internal Server Error"}, 500
 
-if __name__ == '__main__':
+# FIX 6: Unindented this block (moved to far left) so the server actually starts
+if __name__ == "__main__":
     app.run(port=5000)
-
