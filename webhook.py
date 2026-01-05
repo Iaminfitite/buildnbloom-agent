@@ -176,60 +176,127 @@
 # if __name__ == '__main__':
 #     app.run(port=5000)
 
+# import os
+# from flask import Flask, request
+# from crm import add_lead_to_notion
+
+# # FIX 1: 'Flask' (lowercase 'l')
+# app = Flask(__name__)
+
+# @app.route("/webhook", methods=["POST"])
+# def retell_webhook():
+#     try:
+#         data = request.get_json()
+
+#         # 1. CHECK EVENT TYPE
+#         if data.get("event") != "call_analyzed":
+#             return {"message": "Event ignored"}, 200
+        
+#         print(f"📞 Received Call Data: {data.get('call_id', 'Unknown ID')}")
+
+#         # 2. EXTRACT DATA
+#         # FIX 2: Correctly safely get the summary
+#         summary = data.get("call_analysis", {}).get("call_summary", "No summary provided.")
+
+#         # Retell extracts custom data fields
+#         custom_data = data.get("call_analysis", {}).get("custom_analysis_data", {})
+#         name = custom_data.get("name", "Unknown Caller")
+#         # FIX 3: Fixed 'custome_data' typo -> 'custom_data'
+#         email = custom_data.get("email", "no-email@provided.com")
+
+#         # --- 🧠 SMART LOGIC: DETERMINE PRIORITY ---
+#         # 1. Define keywords that signal money or urgency
+#         # FIX 4: Added missing quote after "buy"
+#         hot_keywords = ["urgent", "asap", "buy", "money", "emergency", "immediately", "invest"]
+
+#         # This checks if any 'hot' word appears inside the 'summary' text (case insensitive)
+#         priority_status = "Normal" # Default
+#         if any(word in summary.lower() for word in hot_keywords):
+#             print("🔥 HOT LEAD DETECTED!")
+#             priority_status = "High"
+#         else:
+#             print("🧊 Normal lead.")
+
+#         # 3. SAVE TO NOTION
+#         # FIX 5: Spelled 'success' correctly so the 'if' statement works
+#         success = add_lead_to_notion(name, email, summary, priority_status)
+
+#         if success:
+#             return {"message": "Lead saved to Notion"}, 200
+#         else:
+#             return {"message": "Failed to save to Notion"}, 500
+            
+#     except Exception as e:
+#         print(f"❌ Error: {e}")
+#         return {"message": "Internal Server Error"}, 500
+
+# # FIX 6: Unindented this block (moved to far left) so the server actually starts
+# if __name__ == "__main__":
+#     app.run(port=5000)
+
 import os
 from flask import Flask, request
 from crm import add_lead_to_notion
+from sms import send_sms_followup 
 
-# FIX 1: 'Flask' (lowercase 'l')
 app = Flask(__name__)
 
+# FIX 1: Used single '=' for assignment
 @app.route("/webhook", methods=["POST"])
 def retell_webhook():
     try:
         data = request.get_json()
 
-        # 1. CHECK EVENT TYPE
-        if data.get("event") != "call_analyzed":
-            return {"message": "Event ignored"}, 200
+        # 1. SMART EXTRACTION
+        if "call" in data:
+            call_data = data["call"]
+        else:
+            call_data = data
+
+        print(f"📞 Call ID: {call_data.get('call_id', 'Unknown')}")
+
+        # 2. GET ANALYSIS
+        analysis = call_data.get("call_analysis", {})
         
-        print(f"📞 Received Call Data: {data.get('call_id', 'Unknown ID')}")
+        # FIX 2: Correctly defined 'summary' using 'analysis' (not custom_data)
+        summary = analysis.get("call_summary", "No summary provided")
 
-        # 2. EXTRACT DATA
-        # FIX 2: Correctly safely get the summary
-        summary = data.get("call_analysis", {}).get("call_summary", "No summary provided.")
-
-        # Retell extracts custom data fields
-        custom_data = data.get("call_analysis", {}).get("custom_analysis_data", {})
+        # FIX 3: Fixed typo in 'custom_analysis_data'
+        custom_data = analysis.get("custom_analysis_data", {})
         name = custom_data.get("name", "Unknown Caller")
-        # FIX 3: Fixed 'custome_data' typo -> 'custom_data'
         email = custom_data.get("email", "no-email@provided.com")
 
-        # --- 🧠 SMART LOGIC: DETERMINE PRIORITY ---
-        # 1. Define keywords that signal money or urgency
-        # FIX 4: Added missing quote after "buy"
-        hot_keywords = ["urgent", "asap", "buy", "money", "emergency", "immediately", "invest"]
+        # --- 🧠 PRIORITY LOGIC ---
+        hot_keywords = ["urgent", "asap", "buy", "money", "emergency"]
+        priority_status = "Normal"
 
-        # This checks if any 'hot' word appears inside the 'summary' text (case insensitive)
-        priority_status = "Normal" # Default
         if any(word in summary.lower() for word in hot_keywords):
             print("🔥 HOT LEAD DETECTED!")
             priority_status = "High"
-        else:
-            print("🧊 Normal lead.")
 
         # 3. SAVE TO NOTION
-        # FIX 5: Spelled 'success' correctly so the 'if' statement works
-        success = add_lead_to_notion(name, email, summary, priority_status)
+        # FIX 4: Fixed typos 'notion_success' and 'summary'
+        notion_success = add_lead_to_notion(name, email, summary, priority_status)
 
-        if success:
-            return {"message": "Lead saved to Notion"}, 200
+        # 4. SEND SMS FOLLOW-UP
+        # FIX 5: Fixed typo 'call_data'
+        caller_number = call_data.get("from_number")
+
+        # FIX 6: Fixed typo 'caller_number' and 'Unknown Caller'
+        if caller_number and name != "Unknown Caller":
+            print(f"💬 Sending SMS to {name}...")
+            send_sms_followup(caller_number, name)
+
+        if notion_success:
+            return {"message": "Lead processed successfully"}, 200
         else:
-            return {"message": "Failed to save to Notion"}, 500
-            
+            return {"message": "Notion save failed"}, 500
+    
+    # FIX 7: Fixed typo 'Exception'
     except Exception as e:
         print(f"❌ Error: {e}")
+        # FIX 8: Added colon ':'
         return {"message": "Internal Server Error"}, 500
 
-# FIX 6: Unindented this block (moved to far left) so the server actually starts
 if __name__ == "__main__":
     app.run(port=5000)
