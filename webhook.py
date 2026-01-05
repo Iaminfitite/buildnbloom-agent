@@ -284,8 +284,8 @@ def retell_webhook():
 
         # FIX 6: Fixed typo 'caller_number' and 'Unknown Caller'
         if caller_number and name != "Unknown Caller":
-            print(f"💬 Sending SMS to {name}...")
-            send_sms_followup(caller_number, name)
+            print(f"💬 Sending SMS to {name}... with Priority: {priority_status}...")
+            send_sms_followup(caller_number, name, priority_status)
 
         if notion_success:
             return {"message": "Lead processed successfully"}, 200
