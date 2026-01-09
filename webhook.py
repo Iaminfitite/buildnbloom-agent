@@ -255,13 +255,23 @@ def retell_webhook():
 
         print(f"📞 Call ID: {call_data.get('call_id', 'Unknown')}")
 
+        #  👇 NEW: CHECK DIRECTION TO GET REAL USER PHONE 👇
+        direction = call_data.get("direction", "inbound")
+
+        if direction == "outbound":
+            # If we called them, the user is the 'to_number'
+            user_phone = call_data.get("to_number")
+        else:
+            # If they called us, the user is the 'from_number'
+            user_phone = call_data.get("from_number")
+
+        print(f"📡 Call Direction: {direction} | User Phone: {user_phone}")
+
         # 2. GET ANALYSIS
         analysis = call_data.get("call_analysis", {})
-        
-        # FIX 2: Correctly defined 'summary' using 'analysis' (not custom_data)
         summary = analysis.get("call_summary", "No summary provided")
 
-        # FIX 3: Fixed typo in 'custom_analysis_data'
+
         custom_data = analysis.get("custom_analysis_data", {})
         name = custom_data.get("name", "Unknown Caller")
         email = custom_data.get("email", "no-email@provided.com")

@@ -61,10 +61,8 @@ load_dotenv()
 
 def send_sms_followup(to_number, name, priority="Normal"):
     """
-    Sends a smart sms follow-up message using Twilio.
+    Sends a smart SMS follow-up message using Twilio.
     """
-   # ... (You already typed the def line above) ...
-
     # 1. Get Credentials
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -82,7 +80,7 @@ def send_sms_followup(to_number, name, priority="Normal"):
     try:
         client = Client(account_sid, auth_token)
 
-        # 🧠 THE LOGIC (Make sure 'priority' matches your def line!)
+        # 🧠 THE LOGIC
         if priority == "High":
             message_body = (
                 f"Hi {name}, I noticed your request is urgent. "
@@ -106,9 +104,7 @@ def send_sms_followup(to_number, name, priority="Normal"):
     except Exception as e:
         print(f"❌ Failed to send SMS: {e}")
         return False
-    # ... (your function code is above this) ...
 
-# TEST BLOCK (The Ignition Button)
+# TEST BLOCK
 if __name__ == "__main__":
-    # We pass "High" to test if the Calendly link appears
     send_sms_followup("+61404257175", "Rayan Test", "High")
