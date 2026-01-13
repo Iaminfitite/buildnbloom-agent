@@ -237,7 +237,8 @@
 import os
 from flask import Flask, request
 from crm import add_lead_to_notion
-from sms import send_sms_followup 
+from sms import send_sms_followup
+from emailer import send_email_breifing
 
 app = Flask(__name__)
 
@@ -246,6 +247,12 @@ app = Flask(__name__)
 def retell_webhook():
     try:
         data = request.get_json()
+
+        # 🛑 THE BOUNCER (Add this block)
+        # We only want the "call_analyzed" event.
+        # Ignore "call_started", "call_ended", etc. 
+        if data.get("event") != "call_analyzed":
+            return {"message": "Ignored non-analysis event"}, 200
 
         # 1. SMART EXTRACTION
         if "call" in data:
@@ -283,6 +290,19 @@ def retell_webhook():
         if any(word in summary.lower() for word in hot_keywords):
             print("🔥 HOT LEAD DETECTED!")
             priority_status = "High"
+
+            # 👇 NEW: Send Email Breifind ONLY for HIGH Priority
+            # Make sure to pass: NAme. phone, and Summary
+            print("🔥 HOT LEAD DETECTED!")
+            priority_status = "High"
+
+            print("📧 Queiuing email breifing...")
+            try:
+                # Use the variables we extracted earlier
+                send_email_breifing(name, user_phone, summary)
+            except Exception as e:
+                Print(f"⚠️ Email failed: {e}")
+
 
         # 3. SAVE TO NOTION
         # FIX 4: Fixed typos 'notion_success' and 'summary'
