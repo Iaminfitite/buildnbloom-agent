@@ -88,7 +88,7 @@ def send_sms_followup(to_number, name, priority="Normal"):
             )
         else:
             message_body = (
-                f"Hi {name}, thanks for calling BuildnBloom! "
+                f"Hi {name}, thanks for calling Jims Plumbing! "
                 f"I've received your inquiry and will be in touch shortly. - Rayan"
             )
 
