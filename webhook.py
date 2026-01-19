@@ -246,6 +246,12 @@ app = Flask(__name__)
 @app.route("/webhook", methods=["POST"])
 def retell_webhook():
     try:
+        server_secret = os.getenv("RETELL_SECRET")
+        incoming_secret = request.args.get("secret")
+        if server_secret and incoming_secret != server_secret:
+            print(f"⛔ Unauthorized access attempt! Wrong secret.")
+            return {"message": "Unauthorized"}, 401
+
         data = request.get_json()
 
         # 🛑 THE BOUNCER
