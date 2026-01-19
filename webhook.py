@@ -238,19 +238,17 @@ import os
 from flask import Flask, request
 from crm import add_lead_to_notion
 from sms import send_sms_followup
-from emailer import send_email_breifing
+# 👇 FIX 1: Ensure this spelling matches your emailer.py function exactly
+from emailer import send_email_briefing 
 
 app = Flask(__name__)
 
-# FIX 1: Used single '=' for assignment
 @app.route("/webhook", methods=["POST"])
 def retell_webhook():
     try:
         data = request.get_json()
 
-        # 🛑 THE BOUNCER (Add this block)
-        # We only want the "call_analyzed" event.
-        # Ignore "call_started", "call_ended", etc. 
+        # 🛑 THE BOUNCER
         if data.get("event") != "call_analyzed":
             return {"message": "Ignored non-analysis event"}, 200
 
@@ -262,26 +260,25 @@ def retell_webhook():
 
         print(f"📞 Call ID: {call_data.get('call_id', 'Unknown')}")
 
-        #  👇 NEW: CHECK DIRECTION TO GET REAL USER PHONE 👇
+        # 👇 CALCULATE THE REAL USER PHONE
         direction = call_data.get("direction", "inbound")
-
         if direction == "outbound":
-            # If we called them, the user is the 'to_number'
-            user_phone = call_data.get("to_number")
+            user_phone = call_data.get("to_number") # We called them
         else:
-            # If they called us, the user is the 'from_number'
-            user_phone = call_data.get("from_number")
+            user_phone = call_data.get("from_number") # They called us
 
         print(f"📡 Call Direction: {direction} | User Phone: {user_phone}")
 
         # 2. GET ANALYSIS
         analysis = call_data.get("call_analysis", {})
         summary = analysis.get("call_summary", "No summary provided")
-
-
+        
         custom_data = analysis.get("custom_analysis_data", {})
         name = custom_data.get("name", "Unknown Caller")
-        email = custom_data.get("email", "no-email@provided.com")
+        
+        # 👇 FIX 2: Correct logic to handle empty emails for Notion
+        raw_email = custom_data.get("email")
+        email = raw_email if raw_email else None 
 
         # --- 🧠 PRIORITY LOGIC ---
         hot_keywords = ["urgent", "asap", "buy", "money", "emergency"]
@@ -290,42 +287,35 @@ def retell_webhook():
         if any(word in summary.lower() for word in hot_keywords):
             print("🔥 HOT LEAD DETECTED!")
             priority_status = "High"
-
-            # 👇 NEW: Send Email Breifind ONLY for HIGH Priority
-            # Make sure to pass: NAme. phone, and Summary
-            print("🔥 HOT LEAD DETECTED!")
-            priority_status = "High"
-
-            print("📧 Queiuing email breifing...")
+            
+            # 👇 SEND EMAIL ALERT (Only for High Priority)
+            print("📧 Queuing email briefing...")
             try:
-                # Use the variables we extracted earlier
-                send_email_breifing(name, user_phone, summary)
+                # FIX 3: Pass 'user_phone', not 'user_email' (which doesn't exist)
+                send_email_briefing(name, user_phone, summary)
             except Exception as e:
-                Print(f"⚠️ Email failed: {e}")
-
+                print(f"⚠️ Email failed: {e}")
 
         # 3. SAVE TO NOTION
-        # FIX 4: Fixed typos 'notion_success' and 'summary'
+        # We use the 'email' variable we cleaned up in Fix 2
         notion_success = add_lead_to_notion(name, email, summary, priority_status)
 
         # 4. SEND SMS FOLLOW-UP
-        # FIX 5: Fixed typo 'call_data'
-        caller_number = call_data.get("from_number")
-
-        # FIX 6: Fixed typo 'caller_number' and 'Unknown Caller'
-        if caller_number and name != "Unknown Caller":
-            print(f"💬 Sending SMS to {name}... with Priority: {priority_status}...")
-            send_sms_followup(caller_number, name, priority_status)
+        # 👇 FIX 4: Send to 'user_phone' (Calculated at top), NOT 'caller_number'
+        if user_phone and name != "Unknown Caller":
+            print(f"💬 Sending SMS to {name} ({user_phone})... Priority: {priority_status}")
+            try:
+                send_sms_followup(user_phone, name, priority_status)
+            except Exception as e:
+                print(f"⚠️ SMS failed: {e}")
 
         if notion_success:
             return {"message": "Lead processed successfully"}, 200
         else:
             return {"message": "Notion save failed"}, 500
-    
-    # FIX 7: Fixed typo 'Exception'
+            
     except Exception as e:
         print(f"❌ Error: {e}")
-        # FIX 8: Added colon ':'
         return {"message": "Internal Server Error"}, 500
 
 if __name__ == "__main__":

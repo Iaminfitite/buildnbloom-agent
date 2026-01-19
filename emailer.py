@@ -131,7 +131,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Fixed function name spelling to be consistent
-def send_email_breifing(lead_name,lead_phone,summary):
+def send_email_briefing(lead_name,lead_phone,summary):
     """
     Sends an executive summary of the call to your inbox. 
     """
