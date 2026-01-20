@@ -159,4 +159,4 @@ def send_sms_followup(to_number, name, priority_status):
 if __name__ == "__main__":
     print("🚀 Sending Test SMS...")
     # This should send the Cal.com link
-    send_sms_followup("+61404257175", "Rayan Test", "High")
+    send_sms_followup("+61415519402", "Rayan Test", "High")
