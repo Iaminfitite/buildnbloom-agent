@@ -4,6 +4,7 @@ from openai import OpenAI
 # Initialize OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# 👇 THE "SARAH THE PLUMBER" PROMPT
 SYSTEM_PROMPT = """
 You are Sarah, the calm, capable, highly professional front-desk receptionist for The Plumbers, a plumbing company based in Sydney, NSW.
 You handle inbound SMS instantly, 24/7.
@@ -50,18 +51,27 @@ C) Quote / Site Visit (Renovations, Major works).
 
 Make sure the conversation flows naturally. Do not dump all questions at once.
 """
-def generate_sms_reply(incoming_text, sender_number):
+
+def generate_sms_reply(incoming_text, sender_number, history=[]):
     try:
+        # 1. Start with System Prompt
+        messages_payload = [{"role": "system", "content": SYSTEM_PROMPT}]
+        
+        # 2. Add History (If it exists)
+        if history:
+            messages_payload.extend(history)
+        
+        # 3. Add New Message
+        messages_payload.append({"role": "user", "content": incoming_text})
+
         completion = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"From: {sender_number}\n{incoming_text}"}
-            ],
-            temprature=0.7, # Slightly creative but consitent
-            max_tokens=200 #Keep SMS short
+            model="gpt-4o-mini",
+            messages=messages_payload,
+            temperature=0.7, # 👈 FIXED SPELLING HERE
+            max_tokens=200
         )
         return completion.choices[0].message.content
+
     except Exception as e:
         print(f"🧠 Brain Error: {e}")
-        return "Hi, Sarah here from the plumbers. Im havine a little trouble receiving that last message. Could you give us a quick call?"
+        return "Hi, Sarah here from The Plumbers. I'm having a little trouble receiving that last message. Could you give us a quick call?"
