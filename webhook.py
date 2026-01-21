@@ -234,18 +234,134 @@
 # if __name__ == "__main__":
 #     app.run(port=5000)
 
+# import os
+# from flask import Flask, request
+# from crm import add_lead_to_notion
+# from sms import send_sms_followup
+# # 👇 FIX 1: Ensure this spelling matches your emailer.py function exactly
+# from emailer import send_email_briefing
+# from twilio.twiml.messaging_response import MessagingResponse
+# from brain import generate_sms_reply #Import our new Brain
+
+# app = Flask(__name__)
+
+# @app.route("/webhook", methods=["POST"])
+# def retell_webhook():
+#     try:
+#         server_secret = os.getenv("RETELL_SECRET")
+#         incoming_secret = request.args.get("secret")
+#         if server_secret and incoming_secret != server_secret:
+#             print(f"⛔ Unauthorized access attempt! Wrong secret.")
+#             return {"message": "Unauthorized"}, 401
+
+#         data = request.get_json()
+
+#         # 🛑 THE BOUNCER
+#         if data.get("event") != "call_analyzed":
+#             return {"message": "Ignored non-analysis event"}, 200
+
+#         # 1. SMART EXTRACTION
+#         if "call" in data:
+#             call_data = data["call"]
+#         else:
+#             call_data = data
+
+#         print(f"📞 Call ID: {call_data.get('call_id', 'Unknown')}")
+
+#         # 👇 CALCULATE THE REAL USER PHONE
+#         direction = call_data.get("direction", "inbound")
+#         if direction == "outbound":
+#             user_phone = call_data.get("to_number") # We called them
+#         else:
+#             user_phone = call_data.get("from_number") # They called us
+
+#         print(f"📡 Call Direction: {direction} | User Phone: {user_phone}")
+
+#         # 2. GET ANALYSIS
+#         analysis = call_data.get("call_analysis", {})
+#         summary = analysis.get("call_summary", "No summary provided")
+        
+#         custom_data = analysis.get("custom_analysis_data", {})
+#         name = custom_data.get("name", "Unknown Caller")
+        
+#         # 👇 FIX 2: Correct logic to handle empty emails for Notion
+#         raw_email = custom_data.get("email")
+#         email = raw_email if raw_email else None 
+
+#         # --- 🧠 PRIORITY LOGIC ---
+#         hot_keywords = ["urgent", "asap", "buy", "money", "emergency"]
+#         priority_status = "Normal"
+
+#         if any(word in summary.lower() for word in hot_keywords):
+#             print("🔥 HOT LEAD DETECTED!")
+#             priority_status = "High"
+            
+#             # 👇 SEND EMAIL ALERT (Only for High Priority)
+#             print("📧 Queuing email briefing...")
+#             try:
+#                 # FIX 3: Pass 'user_phone', not 'user_email' (which doesn't exist)
+#                 send_email_briefing(name, user_phone, summary)
+#             except Exception as e:
+#                 print(f"⚠️ Email failed: {e}")
+
+#         # 3. SAVE TO NOTION
+#         # We use the 'email' variable we cleaned up in Fix 2
+#         notion_success = add_lead_to_notion(name, email, summary, priority_status)
+
+#         # 4. SEND SMS FOLLOW-UP
+#         # 👇 FIX 4: Send to 'user_phone' (Calculated at top), NOT 'caller_number'
+#         if user_phone and name != "Unknown Caller":
+#             print(f"💬 Sending SMS to {name} ({user_phone})... Priority: {priority_status}")
+#             try:
+#                 send_sms_followup(user_phone, name, priority_status)
+#             except Exception as e:
+#                 print(f"⚠️ SMS failed: {e}")
+
+#         if notion_success:
+#             return {"message": "Lead processed successfully"}, 200
+#         else:
+#     except Exception as e:
+#         print(f"❌ Error: {e}")
+#         return {"message": "Internal Server Error"}, 500
+
+# @app.route("/sms", methods=['POST'])
+# def incoming_sms():
+#     incoming_mssg =request.values.get('Body','').strip()
+#     sender_number = request.values.get('From','')
+
+#     print(f"📩 SMS Received from {sender_number}: {incoming_msg}")
+
+#     # ai_reply = generate_sms_reply(incoming_msg, sender_number)
+#     print(f"🤖 Sarah Replies: {ai_reply}")
+
+#     #  Send Reply via Twilio
+#     resp = MessagingResponse()
+#     resp.message(ai_reply)
+#     return str(resp)
+        
+#     except Exception as e:
+#         print(f"❌ Error: {e}")
+#         return {"message": "Internal Server Error"}, 500
+
+# if __name__ == "__main__":
+#     app.run(port=5000)
 import os
 from flask import Flask, request
 from crm import add_lead_to_notion
 from sms import send_sms_followup
-# 👇 FIX 1: Ensure this spelling matches your emailer.py function exactly
-from emailer import send_email_briefing 
+from emailer import send_email_briefing
+from twilio.twiml.messaging_response import MessagingResponse
+from brain import generate_sms_reply 
 
 app = Flask(__name__)
 
+# ====================================================
+# 📞 DOOR A: VOICE CALLS (Retell)
+# ====================================================
 @app.route("/webhook", methods=["POST"])
 def retell_webhook():
     try:
+        # 🔒 Security Check
         server_secret = os.getenv("RETELL_SECRET")
         incoming_secret = request.args.get("secret")
         if server_secret and incoming_secret != server_secret:
@@ -254,11 +370,11 @@ def retell_webhook():
 
         data = request.get_json()
 
-        # 🛑 THE BOUNCER
+        # 🛑 The Bouncer
         if data.get("event") != "call_analyzed":
             return {"message": "Ignored non-analysis event"}, 200
 
-        # 1. SMART EXTRACTION
+        # 1. Extraction
         if "call" in data:
             call_data = data["call"]
         else:
@@ -266,27 +382,25 @@ def retell_webhook():
 
         print(f"📞 Call ID: {call_data.get('call_id', 'Unknown')}")
 
-        # 👇 CALCULATE THE REAL USER PHONE
         direction = call_data.get("direction", "inbound")
         if direction == "outbound":
-            user_phone = call_data.get("to_number") # We called them
+            user_phone = call_data.get("to_number")
         else:
-            user_phone = call_data.get("from_number") # They called us
+            user_phone = call_data.get("from_number")
 
         print(f"📡 Call Direction: {direction} | User Phone: {user_phone}")
 
-        # 2. GET ANALYSIS
+        # 2. Analysis
         analysis = call_data.get("call_analysis", {})
         summary = analysis.get("call_summary", "No summary provided")
         
         custom_data = analysis.get("custom_analysis_data", {})
         name = custom_data.get("name", "Unknown Caller")
         
-        # 👇 FIX 2: Correct logic to handle empty emails for Notion
         raw_email = custom_data.get("email")
         email = raw_email if raw_email else None 
 
-        # --- 🧠 PRIORITY LOGIC ---
+        # 🧠 Priority Logic
         hot_keywords = ["urgent", "asap", "buy", "money", "emergency"]
         priority_status = "Normal"
 
@@ -294,20 +408,16 @@ def retell_webhook():
             print("🔥 HOT LEAD DETECTED!")
             priority_status = "High"
             
-            # 👇 SEND EMAIL ALERT (Only for High Priority)
             print("📧 Queuing email briefing...")
             try:
-                # FIX 3: Pass 'user_phone', not 'user_email' (which doesn't exist)
                 send_email_briefing(name, user_phone, summary)
             except Exception as e:
                 print(f"⚠️ Email failed: {e}")
 
-        # 3. SAVE TO NOTION
-        # We use the 'email' variable we cleaned up in Fix 2
+        # 3. Save to Notion
         notion_success = add_lead_to_notion(name, email, summary, priority_status)
 
-        # 4. SEND SMS FOLLOW-UP
-        # 👇 FIX 4: Send to 'user_phone' (Calculated at top), NOT 'caller_number'
+        # 4. Send SMS Follow-up
         if user_phone and name != "Unknown Caller":
             print(f"💬 Sending SMS to {name} ({user_phone})... Priority: {priority_status}")
             try:
@@ -315,14 +425,43 @@ def retell_webhook():
             except Exception as e:
                 print(f"⚠️ SMS failed: {e}")
 
+        # FIX: Added return statement for the 'else' block
         if notion_success:
             return {"message": "Lead processed successfully"}, 200
         else:
             return {"message": "Notion save failed"}, 500
-            
+
     except Exception as e:
         print(f"❌ Error: {e}")
         return {"message": "Internal Server Error"}, 500
+
+
+# ====================================================
+# 📩 DOOR B: SMS CHAT (Twilio + OpenAI)
+# ====================================================
+@app.route("/sms", methods=['POST'])
+def incoming_sms():
+    # FIX: Added 'try' block so the 'except' block at the bottom works
+    try:
+        # FIX: Fixed typo 'incoming_mssg' -> 'incoming_msg'
+        incoming_msg = request.values.get('Body', '').strip()
+        sender_number = request.values.get('From', '')
+
+        print(f"📩 SMS Received from {sender_number}: {incoming_msg}")
+
+        # FIX: Uncommented this line so the brain actually works
+        ai_reply = generate_sms_reply(incoming_msg, sender_number)
+        print(f"🤖 Sarah Replies: {ai_reply}")
+
+        # Send Reply via Twilio
+        resp = MessagingResponse()
+        resp.message(ai_reply)
+        return str(resp)
+        
+    except Exception as e:
+        print(f"❌ SMS Error: {e}")
+        # Twilio expects XML, but in a crash, we just return a string
+        return "Internal Server Error", 500
 
 if __name__ == "__main__":
     app.run(port=5000)
