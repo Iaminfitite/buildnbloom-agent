@@ -129,14 +129,14 @@ def send_sms_followup(to_number, name, priority_status):
     if priority_status.lower() == "high":
         # 🔥 The "Closer" Message (With Link)
         body_text = (
-            f"Hi {name}, Rayan from BuildnBloom here. "
+            f"Hi {name}, Rayan from The Plumbers here. "
             f"Given your timeline, I want to prioritize your search. "
             f"Book a quick chat with me here: {booking_link}"
         )
     else:
         # 🧊 The "Nurture" Message (No Link)
         body_text = (
-            f"Hi {name}, thanks for calling BuildnBloom! "
+            f"Hi {name}, thanks for calling The Plumbers! "
             f"I've noted your details and will be in touch if something matches."
         )
 
