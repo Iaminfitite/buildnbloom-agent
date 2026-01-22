@@ -352,6 +352,7 @@ from sms import send_sms_followup
 from emailer import send_email_briefing
 from twilio.twiml.messaging_response import MessagingResponse
 from brain import generate_sms_reply 
+from memory import get_chat_history, save_chat_log  # 👈 NEW: Memory functions
 
 app = Flask(__name__)
 
@@ -449,9 +450,19 @@ def incoming_sms():
 
         print(f"📩 SMS Received from {sender_number}: {incoming_msg}")
 
-        # FIX: Uncommented this line so the brain actually works
-        ai_reply = generate_sms_reply(incoming_msg, sender_number)
+        # 🧠 STEP 1: Fetch History from Supabase
+        history = get_chat_history(sender_number)
+        print(f"🧠 Loaded {len(history)} previous messages from memory.")
+
+        # 🧠 STEP 2: Save the INCOMING message to memory
+        save_chat_log(sender_number, "in", incoming_msg)
+
+        # 🧠 STEP 3: Generate Reply WITH history context
+        ai_reply = generate_sms_reply(incoming_msg, sender_number, history)
         print(f"🤖 Sarah Replies: {ai_reply}")
+
+        # 🧠 STEP 4: Save the OUTGOING reply to memory
+        save_chat_log(sender_number, "out", ai_reply)
 
         # Send Reply via Twilio
         resp = MessagingResponse()
