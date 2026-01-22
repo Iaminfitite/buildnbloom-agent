@@ -111,7 +111,7 @@ def get_chat_history(phone_number):
         # Get last 5 messages
         response = supabase.table("messages") \
             .select("direction, content") \
-            .eq("phone", phone_number) \
+            .eq("Phone", phone_number) \
             .order("created_at", desc=True) \
             .limit(5) \
             .execute()
@@ -132,7 +132,7 @@ def get_chat_history(phone_number):
 def save_chat_log(phone_number, direction, content):
     try:
         data = {
-            "phone": phone_number,
+            "Phone": phone_number,
             "direction": direction,
             "content": content,
             "channel": "sms"
