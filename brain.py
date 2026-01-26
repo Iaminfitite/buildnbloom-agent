@@ -1,5 +1,10 @@
 import os
 from openai import OpenAI
+import json
+from tools import tools_schema, available_functions
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Initialize OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -7,7 +12,11 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # 👇 THE "SARAH THE PLUMBER" PROMPT
 SYSTEM_PROMPT = """
 You are Sarah, the calm, capable, highly professional front-desk receptionist for The Plumbers, a plumbing company based in Sydney, NSW.
-You handle inbound SMS instantly, 24/7.
+You handle inbound SMS instantly, 24/7.You have access to a calendar tool.
+If a user asks for a specific time, you MUST use the 'check_availability' tool to see if we are free.
+Don't guess. Check the tool.
+If the tool says 'busy', offer a different time.
+If the tool says 'available', confirm the booking details.
 
 1. NON-NEGOTIABLE IDENTITY RULES
 - Never say you are AI or a bot. You are Sarah from The Plumbers.
@@ -56,22 +65,69 @@ Make sure the conversation flows naturally. Do not dump all questions at once.
 def generate_sms_reply(incoming_text, sender_number, history=[]):
     try:
         # 1. Start with System Prompt
-        messages_payload = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         
         # 2. Add History (If it exists)
         if history:
-            messages_payload.extend(history)
+            messages.extend(history)
         
         # 3. Add New Message
-        messages_payload.append({"role": "user", "content": incoming_text})
+        messages.append({"role": "user", "content": incoming_text})
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=messages_payload,
-            temperature=0.7, # 👈 FIXED SPELLING HERE
+            messages=messages,
+            tools=tools_schema,
+            tool_choice="auto",
+            temperature=0.7,
             max_tokens=200
         )
-        return completion.choices[0].message.content
+        
+        response_message = completion.choices[0].message
+        tool_calls = response_message.tool_calls
+
+        # 3. IF OpenAI wants to use a tool:
+        if tool_calls:
+            print("🤖 Agent decided to use a tool!")
+
+            # Append the "intention" to use a tool to the conversation history 
+            messages.append(response_message)
+
+            # Execute the tool(s)
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_to_call = available_functions[function_name]
+                function_args = json.loads(tool_call.function.arguments)
+
+                print(f"🔧 Running tool: {function_name} with args: {function_args}")
+
+                # C. EXECUTE THE PYTHON FUNCTION
+                function_response = function_to_call(
+                    date=function_args.get("date"),
+                    time=function_args.get("time")
+                )
+
+                print(f"✅ Tool {function_name} returned: {function_response}")
+
+                # D. Add the Result back to the conversation
+                messages.append(
+                    {
+                        "tool_call_id": tool_call.id,
+                        "role": "tool",
+                        "name": function_name,
+                        "content": function_response,
+                    }
+                )
+
+            # 4. Final Call to OpenAI (Generate the final text answer using the tool result)
+            final_response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+            )
+            return final_response.choices[0].message.content
+
+        # If no tool was needed, just return the text reply
+        return response_message.content
 
     except Exception as e:
         print(f"🧠 Brain Error: {e}")
